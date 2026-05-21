@@ -1,0 +1,58 @@
+# Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# uv
+.uv-cache/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code local settings (per-machine, not shared)
+.claude/settings.local.json
+
+# Logs
+*.log
+logs/
+
+# Local data
+data/
+*.csv
+*.zip
+!tests/**/*.csv
+
+# Original code — kept locally for porting reference, NEVER committed
+# (contains hardcoded credentials in original/backend/config.py)
+original/
+
+# Scheduler state (if using APScheduler locally)
+scheduler.db
