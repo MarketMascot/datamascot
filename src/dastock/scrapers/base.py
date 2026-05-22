@@ -104,10 +104,12 @@ class BaseScraper(abc.ABC):
                 f"{self._consecutive_failures} consecutive failures"
             )
 
-        # Layer 1: token bucket — blocks up to 30s waiting for a token
+        # Layer 1: token bucket — blocks until a token is available
+        # (pyrate_limiter v3+ uses `timeout` in seconds; -1 = block indefinitely,
+        # 0 = non-blocking, positive = max wait. We use 30s max wait.)
         try:
-            self._limiter.try_acquire(self.SOURCE_NAME, max_delay=30000)
-        except Exception as e:  # pyrate_limiter raises BucketFullException
+            self._limiter.try_acquire(self.SOURCE_NAME, timeout=30)
+        except Exception as e:  # pyrate_limiter raises BucketFullException on timeout
             self._logger.warning(f"Rate limit acquire failed: {e}")
             time.sleep(1.0)  # back off briefly then let tenacity retry the actual call
 
