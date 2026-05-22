@@ -18,6 +18,7 @@ dependencies = [
     "lxml>=5.2.0",
     "python-dateutil>=2.9.0",
     "click>=8.1.0",
+    "dhanhq>=2.2.0",
 ]
 
 [project.optional-dependencies]

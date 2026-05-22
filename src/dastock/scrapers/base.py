@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from pyrate_limiter import Duration, Limiter, Rate
 from tenacity import (
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -81,10 +81,18 @@ class BaseScraper(abc.ABC):
 
     # ─── HTTP helpers with retry + rate limit + circuit breaker ─────────────
 
+    def _is_retryable(exc: BaseException) -> bool:  # noqa: N805
+        """Only retry timeouts and non-400 HTTP errors."""
+        if isinstance(exc, httpx.TimeoutException):
+            return True
+        if isinstance(exc, httpx.HTTPStatusError):
+            return exc.response.status_code != 400
+        return False
+
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=2, min=2, max=60),
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
+        retry=retry_if_exception(_is_retryable),
         reraise=True,
     )
     def _request(
@@ -119,12 +127,18 @@ class BaseScraper(abc.ABC):
             self._record_failure()
             raise
 
-        # Auth errors — don't retry, surface immediately
+        # Auth errors — never retry; surface immediately
         if resp.status_code in (401, 403):
             self._record_failure()
             raise TokenExpiredError(
                 f"{self.SOURCE_NAME} auth failed ({resp.status_code}) at {url}"
             )
+
+        # 400 — bad parameters or no data available.
+        # Don't retry (data won't appear), don't count as a circuit-breaker failure.
+        # Raise so callers can inspect; they must catch HTTPStatusError(400) themselves.
+        if resp.status_code == 400:
+            resp.raise_for_status()
 
         # Rate limit — honor Retry-After then let tenacity backoff
         if resp.status_code == 429:
