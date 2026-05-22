@@ -66,10 +66,7 @@ class MutualFundRepository:
         return Decimal(resp.data[0]["nav"])
 
     def list_amfi_codes(self) -> list[dict[str, Any]]:
-        """Return all (id, amfi_code) pairs from mutual_funds with non-null amfi_code.
-
-        Used by the daily NAV scraper to know which funds to fetch from mfapi.
-        """
+        """Return all (id, amfi_code) pairs from mutual_funds with non-null amfi_code."""
         resp = (
             self._client.table("mutual_funds")
             .select("id, amfi_code")
@@ -78,3 +75,91 @@ class MutualFundRepository:
             .execute()
         )
         return resp.data or []
+
+    def list_rupeevest_schemecodes(self) -> list[dict[str, Any]]:
+        """Return all (id, rupeevest_schemecode) pairs for active funds with schemecode set."""
+        resp = (
+            self._client.table("mutual_funds")
+            .select("id, rupeevest_schemecode, scheme_name")
+            .not_.is_("rupeevest_schemecode", "null")
+            .eq("listing_status", "active")
+            .execute()
+        )
+        return resp.data or []
+
+    def find_by_name(self, scheme_name: str) -> dict[str, Any] | None:
+        """Look up a mutual_funds row by exact scheme_name match.
+
+        Used by Rupeevest schemecode bridge: s_name → find fund UUID.
+        """
+        resp = (
+            self._client.table("mutual_funds")
+            .select("id, rupeevest_schemecode, scheme_name")
+            .eq("scheme_name", scheme_name)
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+
+    def set_rupeevest_schemecode(self, fund_id: UUID, schemecode: int) -> None:
+        """Set rupeevest_schemecode on an existing mutual_funds row."""
+        self._client.table("mutual_funds").update(
+            {"rupeevest_schemecode": schemecode}
+        ).eq("id", str(fund_id)).execute()
+
+    def upsert_metrics(
+        self,
+        *,
+        fund_id: UUID,
+        as_of_date: date,
+        metrics: dict[str, Any],
+        source: str = "rupeevest",
+    ) -> UUID:
+        """Upsert fund metrics (returns, AUM, expense ratio, etc.). Idempotent."""
+        row = {"fund_id": str(fund_id), "as_of_date": as_of_date.isoformat(), "source": source}
+        # Decimal → str for JSON precision
+        for k, v in metrics.items():
+            if isinstance(v, Decimal):
+                row[k] = str(v)
+            elif v is not None:
+                row[k] = v
+        resp = (
+            self._client.table("mf_metrics")
+            .upsert(row, on_conflict="fund_id,as_of_date")
+            .execute()
+        )
+        return UUID(resp.data[0]["id"])
+
+    def upsert_holding(
+        self,
+        *,
+        fund_id: UUID,
+        stock_id: UUID,
+        as_of_date: date,
+        holding_pct: Decimal | None = None,
+        holding_value_cr: Decimal | None = None,
+        no_of_shares: int | None = None,
+        source: str = "rupeevest",
+        raw_payload: dict[str, Any] | None = None,
+    ) -> UUID:
+        """Upsert one MF→stock holding. Idempotent on (fund_id, stock_id, as_of_date)."""
+        row: dict[str, Any] = {
+            "fund_id": str(fund_id),
+            "stock_id": str(stock_id),
+            "as_of_date": as_of_date.isoformat(),
+            "source": source,
+        }
+        if holding_pct is not None:
+            row["holding_pct"] = str(holding_pct)
+        if holding_value_cr is not None:
+            row["holding_value_cr"] = str(holding_value_cr)
+        if no_of_shares is not None:
+            row["no_of_shares"] = no_of_shares
+        if raw_payload is not None:
+            row["raw_payload"] = raw_payload
+        resp = (
+            self._client.table("mf_stock_holdings")
+            .upsert(row, on_conflict="fund_id,stock_id,as_of_date")
+            .execute()
+        )
+        return UUID(resp.data[0]["id"])
