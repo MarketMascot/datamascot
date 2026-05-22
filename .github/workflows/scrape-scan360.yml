@@ -1,0 +1,41 @@
+name: Scan360 Sectors (weekly)
+
+on:
+  schedule:
+    - cron: "30 18 * * 5"    # Saturday 12:00 AM IST
+  workflow_dispatch:
+    inputs:
+      only_symbol:
+        description: "Single NSE symbol (debug, optional)"
+        type: string
+        required: false
+      limit:
+        description: "Max stocks to update (optional)"
+        type: string
+        required: false
+
+concurrency:
+  group: scrape-scan360
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Run Scan360 sector scraper
+        run: |
+          ARGS=""
+          [ -n "${{ inputs.only_symbol }}" ] && ARGS="$ARGS --only-symbol ${{ inputs.only_symbol }}"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
+          uv run python scripts/run_scan360.py $ARGS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCAN360_RATE_LIMIT_RPS: "2.0"
+          TRIGGERED_BY: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'cron' }}

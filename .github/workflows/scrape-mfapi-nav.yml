@@ -1,0 +1,51 @@
+name: mfapi Daily NAV
+
+on:
+  schedule:
+    - cron: "00 16 * * *"    # Daily 9:30 PM IST
+  workflow_dispatch:
+    inputs:
+      resume:
+        description: "Resume last failed run"
+        type: boolean
+        default: false
+      retry_errors:
+        description: "Retry items in scraper_errors"
+        type: boolean
+        default: false
+      only_symbol:
+        description: "Single AMFI code (debug, optional)"
+        type: string
+        required: false
+      limit:
+        description: "Max funds to process (optional)"
+        type: string
+        required: false
+
+concurrency:
+  group: scrape-mfapi-nav
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Run mfapi NAV scraper
+        run: |
+          ARGS=""
+          [ "${{ inputs.resume }}" = "true" ] && ARGS="$ARGS --resume"
+          [ "${{ inputs.retry_errors }}" = "true" ] && ARGS="$ARGS --retry-errors"
+          [ -n "${{ inputs.only_symbol }}" ] && ARGS="$ARGS --only-symbol ${{ inputs.only_symbol }}"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
+          uv run python scripts/run_mfapi.py $ARGS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MFAPI_RATE_LIMIT_RPS: "5.0"
+          TRIGGERED_BY: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'cron' }}

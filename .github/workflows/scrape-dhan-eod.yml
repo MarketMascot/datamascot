@@ -1,0 +1,53 @@
+name: Dhan EOD Prices
+
+on:
+  schedule:
+    - cron: "30 13 * * 1-5"   # Mon–Fri 7:00 PM IST (market closes 3:30 PM)
+  workflow_dispatch:
+    inputs:
+      resume:
+        description: "Resume last failed run"
+        type: boolean
+        default: false
+      retry_errors:
+        description: "Retry items in scraper_errors"
+        type: boolean
+        default: false
+      only_symbol:
+        description: "Single NSE symbol (debug, optional)"
+        type: string
+        required: false
+      limit:
+        description: "Max stocks to process (optional)"
+        type: string
+        required: false
+
+concurrency:
+  group: scrape-dhan-eod
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Run Dhan EOD scraper
+        run: |
+          ARGS="--mode eod"
+          [ "${{ inputs.resume }}" = "true" ] && ARGS="$ARGS --resume"
+          [ "${{ inputs.retry_errors }}" = "true" ] && ARGS="$ARGS --retry-errors"
+          [ -n "${{ inputs.only_symbol }}" ] && ARGS="$ARGS --only-symbol ${{ inputs.only_symbol }}"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
+          uv run python scripts/run_dhan.py $ARGS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
+          DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
+          DHAN_RATE_LIMIT_RPS: "2.0"
+          TRIGGERED_BY: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'cron' }}

@@ -1,0 +1,35 @@
+name: Bootstrap (one-time identity seed)
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max stocks to process (blank = all; use small number for smoke test)"
+        type: string
+        required: false
+
+concurrency:
+  group: bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Run bootstrap
+        run: |
+          ARGS=""
+          [ -n "${{ inputs.limit }}" ] && ARGS="--limit ${{ inputs.limit }}"
+          uv run python scripts/bootstrap_identity.py $ARGS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
+          DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
+          TRIGGERED_BY: manual

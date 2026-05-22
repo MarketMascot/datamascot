@@ -1,0 +1,46 @@
+name: Trendlyne SWOT (weekly)
+
+on:
+  schedule:
+    - cron: "30 23 * * 6"    # Saturday 5:00 AM IST (after QVT run finishes)
+  workflow_dispatch:
+    inputs:
+      resume:
+        description: "Resume last failed run"
+        type: boolean
+        default: false
+      only_symbol:
+        description: "Single NSE symbol (debug, optional)"
+        type: string
+        required: false
+      limit:
+        description: "Max stocks to process (optional)"
+        type: string
+        required: false
+
+concurrency:
+  group: scrape-trendlyne-swot
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Run Trendlyne SWOT scraper
+        run: |
+          ARGS="--mode swot"
+          [ "${{ inputs.resume }}" = "true" ] && ARGS="$ARGS --resume"
+          [ -n "${{ inputs.only_symbol }}" ] && ARGS="$ARGS --only-symbol ${{ inputs.only_symbol }}"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
+          uv run python scripts/run_trendlyne.py $ARGS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TRENDLYNE_RATE_LIMIT_RPS: "0.3"
+          TRIGGERED_BY: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'cron' }}

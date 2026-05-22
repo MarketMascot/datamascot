@@ -1,0 +1,46 @@
+name: Rupeevest MF Holdings (monthly)
+
+on:
+  schedule:
+    - cron: "30 17 1 * *"    # 1st of every month, 11:00 PM IST
+  workflow_dispatch:
+    inputs:
+      resume:
+        description: "Resume last failed run"
+        type: boolean
+        default: false
+      only_symbol:
+        description: "Single schemecode (debug, optional)"
+        type: string
+        required: false
+      limit:
+        description: "Max funds to process (optional)"
+        type: string
+        required: false
+
+concurrency:
+  group: scrape-rupeevest-holdings
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Run Rupeevest holdings scraper
+        run: |
+          ARGS="--mode holdings"
+          [ "${{ inputs.resume }}" = "true" ] && ARGS="$ARGS --resume"
+          [ -n "${{ inputs.only_symbol }}" ] && ARGS="$ARGS --only-symbol ${{ inputs.only_symbol }}"
+          [ -n "${{ inputs.limit }}" ] && ARGS="$ARGS --limit ${{ inputs.limit }}"
+          uv run python scripts/run_rupeevest.py $ARGS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RUPEEVEST_RATE_LIMIT_RPS: "1.0"
+          TRIGGERED_BY: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'cron' }}
