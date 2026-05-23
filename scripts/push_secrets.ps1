@@ -128,15 +128,18 @@ foreach ($name in $SecretNames) {
         continue
     }
 
-    # Pipe value to gh via stdin so it never appears on the command line.
-    # `gh secret set NAME --repo X --body -` reads body from stdin.
+    # Pass the value via --body so we control exact bytes (no trailing newline).
+    # PowerShell's `|` and `<` add CRLF / line endings; --body keeps the value
+    # exactly as parsed from .env. The value still doesn't appear in shell
+    # history because we invoke via & (call operator), not via Invoke-Expression.
     try {
-        $value | & gh secret set $name --repo $Repo --body - 2>&1 | Out-Null
+        $output = & gh secret set $name --repo $Repo --body $value 2>&1
+
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  OK    $name = $preview" -ForegroundColor Green
             $pushed++
         } else {
-            Write-Host "  FAIL  $name (gh exit $LASTEXITCODE)" -ForegroundColor Red
+            Write-Host "  FAIL  $name (gh exit $LASTEXITCODE): $output" -ForegroundColor Red
             $failed++
         }
     } catch {
