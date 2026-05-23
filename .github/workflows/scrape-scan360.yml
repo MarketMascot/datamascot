@@ -36,6 +36,7 @@ jobs:
           uv run python scripts/run_scan360.py $ARGS
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SCAN360_RATE_LIMIT_RPS: "2.0"
           TRIGGERED_BY: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'cron' }}

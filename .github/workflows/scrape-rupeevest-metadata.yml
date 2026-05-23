@@ -46,6 +46,7 @@ jobs:
           uv run python scripts/run_rupeevest.py $ARGS
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RUPEEVEST_RATE_LIMIT_RPS: "1.0"
           TRIGGERED_BY: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'cron' }}

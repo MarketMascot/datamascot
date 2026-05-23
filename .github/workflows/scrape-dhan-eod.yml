@@ -38,7 +38,7 @@ jobs:
       - run: uv sync --frozen
       - name: Run Dhan EOD scraper
         run: |
-          ARGS="--mode eod"
+          ARGS=""
           [ "${{ inputs.resume }}" = "true" ] && ARGS="$ARGS --resume"
           [ "${{ inputs.retry_errors }}" = "true" ] && ARGS="$ARGS --retry-errors"
           [ -n "${{ inputs.only_symbol }}" ] && ARGS="$ARGS --only-symbol ${{ inputs.only_symbol }}"
@@ -46,6 +46,7 @@ jobs:
           uv run python scripts/run_dhan.py $ARGS
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
           DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
